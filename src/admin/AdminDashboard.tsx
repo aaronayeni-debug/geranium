@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Home, Info, Globe, Image, Phone } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -30,6 +30,20 @@ export default function AdminDashboard() {
   const [onlineUserIds, setOnlineUserIds] = useState<string[]>([]);
 
   const isSuperAdmin = role === 'super_admin';
+
+  // Refs for tracking values inside presence useEffect without stale closures
+  const activeViewRef = useRef(activeView);
+  const isSuperAdminRef = useRef(isSuperAdmin);
+  const fetchAdminsRef = useRef<(() => Promise<void>) | null>(null);
+  const presenceDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    activeViewRef.current = activeView;
+  }, [activeView]);
+
+  useEffect(() => {
+    isSuperAdminRef.current = isSuperAdmin;
+  }, [isSuperAdmin]);
 
   // ── Auth & settings load ───────────────────────────────────────────────────
   useEffect(() => {
@@ -101,6 +115,18 @@ export default function AdminDashboard() {
         const state = channel.presenceState();
         const activeIds = Object.keys(state);
         setOnlineUserIds(activeIds);
+
+        // Auto-refresh admins list if the current admin is viewing the Users list
+        if (activeViewRef.current === 'users' && isSuperAdminRef.current) {
+          if (presenceDebounceTimerRef.current) {
+            clearTimeout(presenceDebounceTimerRef.current);
+          }
+          presenceDebounceTimerRef.current = setTimeout(() => {
+            if (fetchAdminsRef.current) {
+              fetchAdminsRef.current();
+            }
+          }, 1500);
+        }
       })
       .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
@@ -112,12 +138,15 @@ export default function AdminDashboard() {
       });
 
     return () => {
+      if (presenceDebounceTimerRef.current) {
+        clearTimeout(presenceDebounceTimerRef.current);
+      }
       supabase.removeChannel(channel);
     };
   }, [user]);
 
   // ── Fetch admin users ──────────────────────────────────────────────────────
-  const fetchAdmins = async () => {
+  const fetchAdmins = useCallback(async () => {
     setFetchingAdmins(true);
     try {
       const { data, error } = await supabase.rpc('get_admin_users');
@@ -128,7 +157,11 @@ export default function AdminDashboard() {
     } finally {
       setFetchingAdmins(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchAdminsRef.current = fetchAdmins;
+  }, [fetchAdmins]);
 
   useEffect(() => {
     if (activeView === 'users' && isSuperAdmin) {
@@ -137,7 +170,7 @@ export default function AdminDashboard() {
       }, 0);
       return () => clearTimeout(timer);
     }
-  }, [activeView, isSuperAdmin]);
+  }, [activeView, isSuperAdmin, fetchAdmins]);
 
   // ── Handlers ───────────────────────────────────────────────────────────────
   const handleUpdateRole = async (targetUserId: string, newRole: string) => {
