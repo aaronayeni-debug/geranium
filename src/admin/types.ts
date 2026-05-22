@@ -8,6 +8,7 @@ export interface AdminUser {
   role: string;
   math_challenge_enabled: boolean;
   phone_alias_enabled: boolean;
+  last_seen: string | null;
 }
 
 export interface EmployeeRecord {

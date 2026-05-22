@@ -55,6 +55,12 @@ export default function AdminDashboard() {
         }
         setRole(roleData.role);
 
+        // Stamp last_seen (non-critical — soft fail)
+        await supabase
+          .from('admin_roles')
+          .update({ last_seen: new Date().toISOString() })
+          .eq('user_id', session.user.id);
+
         // Load global system settings (non-critical — soft fail)
         const { data: settings } = await supabase
           .from('system_settings')

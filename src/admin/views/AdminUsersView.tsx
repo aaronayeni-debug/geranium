@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { 
-  Search, RefreshCw, Mail, 
+  Search, RefreshCw, Mail, Clock,
   Lock, KeyRound, EyeOff, ShieldCheck, AlertOctagon
 } from 'lucide-react';
 import type { AdminUser } from '../types';
@@ -53,6 +53,23 @@ function Toggle({
       </button>
     </div>
   );
+}
+
+// ── Last Seen formatter ────────────────────────────────────────────────────────
+function formatLastSeen(lastSeen: string | null, isOnline: boolean): { text: string; isOnline: boolean } {
+  if (isOnline) return { text: 'Online now', isOnline: true };
+  if (!lastSeen) return { text: 'Never', isOnline: false };
+
+  const diff = Date.now() - new Date(lastSeen).getTime();
+  const mins = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  const days = Math.floor(diff / 86400000);
+
+  if (mins < 1) return { text: 'Just now', isOnline: false };
+  if (mins < 60) return { text: `${mins}m ago`, isOnline: false };
+  if (hours < 24) return { text: `${hours}h ago`, isOnline: false };
+  if (days < 7) return { text: `${days}d ago`, isOnline: false };
+  return { text: new Date(lastSeen).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }), isOnline: false };
 }
 
 // ── Premium User Avatar ────────────────────────────────────────────────────────
@@ -390,7 +407,19 @@ export default function AdminUsersView({
                                 <span className="inline-flex items-center text-[9px] bg-[#D4900A]/10 text-[#D4900A] px-2 py-0.5 rounded-full border border-[#D4900A]/20 font-extrabold uppercase tracking-wider">You</span>
                               )}
                             </span>
-                            <span className="text-[10px] text-slate-400 font-medium">User ID: {admin.user_id.slice(0, 8)}...</span>
+                            {(() => {
+                              const ls = formatLastSeen(admin.last_seen ?? null, onlineUserIds.includes(admin.user_id));
+                              return (
+                                <span className={`text-[10px] font-medium flex items-center gap-1 ${
+                                  ls.isOnline ? 'text-emerald-500' : 'text-slate-400'
+                                }`}>
+                                  {ls.isOnline
+                                    ? <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
+                                    : <Clock size={10} />}
+                                  {ls.text}
+                                </span>
+                              );
+                            })()}
                           </div>
                         </div>
                       </td>
@@ -441,6 +470,19 @@ export default function AdminUsersView({
                             <span className="text-[8px] bg-[#D4900A]/10 text-[#D4900A] px-2 py-0.5 rounded-full border border-[#D4900A]/20 font-bold uppercase tracking-wider">You</span>
                           )}
                         </p>
+                        {(() => {
+                          const ls = formatLastSeen(admin.last_seen ?? null, onlineUserIds.includes(admin.user_id));
+                          return (
+                            <p className={`text-[10px] font-medium flex items-center gap-1 ${
+                              ls.isOnline ? 'text-emerald-500' : 'text-slate-400'
+                            }`}>
+                              {ls.isOnline
+                                ? <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
+                                : <Clock size={10} />}
+                              {ls.text}
+                            </p>
+                          );
+                        })()}
                         <p className="text-xs text-slate-500 font-mono flex items-center gap-1.5">
                           <Mail size={11} />
                           {formatIdentifier(admin.email)}
