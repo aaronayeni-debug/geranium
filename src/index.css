@@ -1,0 +1,210 @@
+@import "tailwindcss";
+
+/* ─── Design Tokens ─────────────────────────────────────────────────────────── */
+@theme {
+  /* Brand palette — extracted from Geranium Limited logo */
+  --color-navy-50:   #EEF3FA;
+  --color-navy-100:  #C9D9EF;
+  --color-navy-200:  #93B2DF;
+  --color-navy-300:  #5D8CCF;
+  --color-navy-400:  #2B65BF;
+  --color-navy-500:  #1B5EA7;
+  --color-navy-600:  #154A86;
+  --color-navy-700:  #103868;
+  --color-navy-800:  #0B254A;
+  --color-navy-900:  #071528;
+  --color-navy-950:  #040D1A;
+
+  --color-green-50:  #EBF5EA;
+  --color-green-100: #C5E3C3;
+  --color-green-200: #8EC98B;
+  --color-green-300: #60AF5C;
+  --color-green-400: #4CAF50;
+  --color-green-500: #3D8B37;
+  --color-green-600: #2F6D2A;
+  --color-green-700: #22511F;
+  --color-green-800: #163415;
+  --color-green-900: #0A1A0A;
+
+  --color-gold-50:   #FDF5E4;
+  --color-gold-100:  #FAE5B4;
+  --color-gold-200:  #F5CA6E;
+  --color-gold-300:  #EFB030;
+  --color-gold-400:  #D4900A;
+  --color-gold-500:  #B07608;
+  --color-gold-600:  #8C5D06;
+  --color-gold-700:  #684504;
+  --color-gold-800:  #442D03;
+  --color-gold-900:  #201501;
+
+  /* Semantic tokens */
+  --color-brand-primary:   var(--color-navy-500);
+  --color-brand-secondary: var(--color-green-500);
+  --color-brand-accent:    var(--color-gold-400);
+  --color-brand-dark:      var(--color-navy-950);
+  --color-brand-surface:   #F7F9FC;
+
+  /* Typography */
+  --font-display: "Comfortaa", "Space Grotesk", system-ui, sans-serif;
+  --font-body:    "Raleway", "Inter", system-ui, sans-serif;
+
+  /* Spacing */
+  --spacing-section: 6rem;
+
+  /* Radius */
+  --radius-card: 1rem;
+  --radius-pill: 9999px;
+}
+
+/* ─── Base ───────────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  background-color: #ffffff;
+  color: var(--color-navy-950);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+h1, h2, h3, h4, h5 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/* ─── Utility Classes ────────────────────────────────────────────────────────── */
+.container-site {
+  max-width: 1200px;
+  margin-inline: auto;
+  padding-inline: 1.5rem;
+}
+
+@media (min-width: 768px) {
+  .container-site { padding-inline: 2.5rem; }
+}
+
+/* Frosted glass */
+.glass {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.glass-dark {
+  background: rgba(7, 21, 40, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Section curve divider */
+.curve-top::before {
+  content: '';
+  display: block;
+  height: 80px;
+  background: inherit;
+  border-radius: 0 0 50% 50% / 0 0 100% 100%;
+  margin-top: -79px;
+  position: relative;
+  z-index: 1;
+}
+
+/* Gradient mesh hero */
+.hero-mesh {
+  background:
+    radial-gradient(ellipse 80% 60% at 70% 50%, rgba(61, 139, 55, 0.18) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 80% at 10% 20%, rgba(27, 94, 167, 0.25) 0%, transparent 55%),
+    radial-gradient(ellipse 40% 40% at 90% 80%, rgba(212, 144, 10, 0.12) 0%, transparent 50%),
+    linear-gradient(135deg, #040D1A 0%, #0B254A 50%, #0A1628 100%);
+}
+
+/* Sr-only for accessibility */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Focus ring */
+:focus-visible {
+  outline: 2px solid var(--color-gold-400);
+  outline-offset: 3px;
+}
+
+/* Transition preset */
+.transition-fast { transition: all 0.2s ease; }
+.transition-smooth { transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1); }
+
+/* Custom scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #f1f5f9; }
+::-webkit-scrollbar-thumb { background: var(--color-navy-300); border-radius: 3px; }
+
+/* Image cover utility */
+.img-cover {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ─── Animations ─────────────────────────────────────────────────────────────── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-8px); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(27, 94, 167, 0.4); }
+  50%       { box-shadow: 0 0 0 12px rgba(27, 94, 167, 0); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position:  200% center; }
+}
+
+.animate-fade-up {
+  animation: fadeUp 0.7s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+.animate-float {
+  animation: float 4s ease-in-out infinite;
+}
+
+.float-delay-1 { animation-delay: 0.5s; }
+.float-delay-2 { animation-delay: 1s; }
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hide scrollbar for IE, Edge and Firefox */
+.scrollbar-none {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

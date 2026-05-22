@@ -1,0 +1,173 @@
+So is it possible to setup a Auth system, let's say I setup a user table in supabase, (for now I've not tried neon, so can't use it for example), I want to set role as admin, set bool for true or false, then to tighten security more, I now want to setup a system where I setup a random number generator between 1 to 20, then each time a admin tries to login, let's before authenticating and giving that user an access , the frontend will get that random digit from the backend along with the users credentials, cause I want it to be easy, seamless n fast, once a user enter their details, when the backend is sending their. Auth to. Authenticate themz it sends the random number along, then I set the frontend to get this random number let's say 4 is send, then the frontend generate a random question, be it maths or logic, let's say 80-76 what is the answer, or 7 mangoes drops from a tree 3 are bad how many are good, then the user enters the correct answer and if it tallys with the number from the backend it allows the admin access if incorrect it says failed. Try again later. Is this possible if so how can it be done I don't want to use an ai, cause of attacks, scripting or. Prompt can make the ai make mistake,  or token issues, so trying to avoid use of ai for that, being a project with react and supabase for now...  How the random number will be generated alongside side, cause I user to. Still be in the same login screen probably just a loading spinner will be shown waiting for the admin input
+
+
+Let's say I don't want to use any backend, just react n supabase.. and cause I want random questions and the answers being a digit between 1 to 20
+help me generate 20 random questions with a random answer between 1 to 20 for each question
+
+
+To build this using strictly React and Supabase (without managing a separate backend server like Python or Express), you can use a built-in feature of Supabase called Edge Functions.
+
+Edge Functions are serverless TypeScript functions hosted directly by Supabase. They act as your secure backend space so you don't have to expose your question answers to the React frontend.
+
+Here is exactly how you can set up this seamless admin challenge system using only React and Supabase.
+
+Step 1: Create Your Question Bank Table in Supabase
+Inside your Supabase dashboard, go to the SQL Editor and create a hidden table that stores your 20 questions and answers.
+
+use this as the table schema,
+Employee Name,  Address, Date of Birth, ID Number, Employment Contract Ref, Attendance Record Ref, Payrol Ref, Medical Record (if applicable), Next of Kin name, Next of Kin contact
+for admin login:
+id, role(admin, super_admin), email, password, is_admin(true/false), phone number, random_answer (1-20)
+random_question (text from the 20 questions)
+
+do the admin login as deem fit,then  use this number for test 08131000117, there will be a signup also, email, phone n password, login with either phone or email
+
+SQL
+-- 1. Create the table
+CREATE TABLE public.question_bank (
+    id INT PRIMARY KEY,
+    question TEXT NOT NULL,
+    answer INT NOT NULL
+);
+
+-- 2. Insert your math/logic questions (Answers are digits between 1 and 20)
+INSERT INTO public.question_bank (id, question, answer) VALUES
+(1, 'What is 80 minus 76?', 4),
+(2, '7 mangoes drop from a tree, 3 are bad. How many are good?', 4),
+(3, 'If you have two hands, how many fingers do you have on one hand?', 5),
+(4, 'What is 32 divided by 2, minus 10?', 6);
+-- ... continue up to 20 questions
+
+-- 3. TIGHTEN SECURITY: Turn on Row Level Security (RLS)
+ALTER TABLE public.question_bank ENABLE ROW LEVEL SECURITY;
+
+-- Do NOT create any select policies. 
+-- This ensures the React frontend can NEVER read this table directly.
+Step 2: The Two-Step Supabase Edge Function
+Instead of logging in directly from React, your React app will talk to a secure Supabase Edge Function (let's call it admin-login).
+
+Inside this Edge Function, the TypeScript code handles the security workflow like a vault:
+
+Phase A: The Password & Admin Check
+React sends the email and password to the Edge Function.
+
+The Edge Function runs a server-side authentication check using the Supabase admin client.
+
+If the credentials are correct, it checks your profile table to see if is_admin is true.
+
+If they are an admin, the function WITHHOLDS the login token. It keeps it secret for a moment.
+
+It runs a basic TypeScript math randomizer: const randomId = Math.floor(Math.random() * 20) + 1;
+
+It pulls that specific question text from your question_bank table.
+
+It signs a temporary, short-lived encrypted token containing the correct answer and the withheld login token, and sends only the question text and this temporary token back to React.
+
+Step 3: The React Frontend Flow (Seamless UI)
+In your React app, you handle this with a single login component using state. The user never leaves the screen; they just see the interface update dynamically.
+
+JavaScript
+import { useState } from 'react';
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient('YOUR_SUPABASE_URL', 'YOUR_SUPABASE_ANON_KEY');
+
+export default function Login() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  
+  // Custom states for our Admin Challenge
+  const [challengeQuestion, setChallengeQuestion] = useState('');
+  const [userAnswer, setUserAnswer] = useState('');
+  const [tempToken, setTempToken] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+
+  // STEP 1: Initial Login Submit
+  const handleInitialLogin = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setErrorMessage('');
+
+    // Call our Supabase Edge Function instead of direct auth
+    const { data, error } = await supabase.functions.invoke('admin-login', {
+      body: { action: 'check_credentials', email, password }
+    });
+
+    setLoading(false);
+
+    if (error || data.status === 'error') {
+      setErrorMessage(data?.message || 'Invalid credentials');
+      return;
+    }
+
+    if (data.status === 'challenge_required') {
+      // The user is an admin! Show the question field
+      setChallengeQuestion(data.question);
+      setTempToken(data.tempToken);
+    } else {
+      // Standard non-admin user log in instantly
+      await supabase.auth.setSession(data.session);
+    }
+  };
+
+  // STEP 2: Verify the custom question answer
+  const handleVerifyChallenge = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    const { data, error } = await supabase.functions.invoke('admin-login', {
+      body: { action: 'verify_challenge', answer: parseInt(userAnswer), tempToken }
+    });
+
+    setLoading(false);
+
+    if (data.status === 'success') {
+      // Answer is correct! Inject the final session into Supabase
+      await supabase.auth.setSession(data.session);
+      alert('Access Granted! Welcome Admin.');
+    } else {
+      setErrorMessage('Incorrect answer. Failed. Try again later.');
+      // Reset state to lock them out
+      setChallengeQuestion('');
+    }
+  };
+
+  return (
+    <div className="login-box">
+      <h2>System Login</h2>
+      
+      {loading && <div className="spinner">Loading secure gateway...</div>}
+      {errorMessage && <p style={{ color: 'red' }}>{errorMessage}</p>}
+
+      {!challengeQuestion ? (
+        /* Standard Login Form */
+        <form onSubmit={handleInitialLogin}>
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
+          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" required />
+          <button type="submit" disabled={loading}>Login</button>
+        </form>
+      ) : (
+        /* Admin Security Challenge Form (Swaps in seamlessly) */
+        <form onSubmit={handleVerifyChallenge}>
+          <label className="admin-alert">⚠️ ADMIN VERIFICATION REQUIRED</label>
+          <p>{challengeQuestion}</p>
+          <input 
+            type="number" 
+            value={userAnswer} 
+            onChange={(e) => setUserAnswer(e.target.value)} 
+            placeholder="Enter digital answer (1-20)" 
+            required 
+          />
+          <button type="submit" disabled={loading}>Verify Access</button>
+        </form>
+      )}
+    </div>
+  );
+}
+Why This Setup is Highly Secure
+Zero Exposure: Because your question_bank table has strict RLS and no select policies, hackers cannot read your questions or solutions via the network tab.
+
+Deterministic & Strict: Since there is no AI involved, there are no prompt windows to exploit. If the database entry says the answer is 4, the input must be exactly 4.
+
+Seamless UX: For the admin, they click submit, the loading spinner shows up while the Edge Function processes the password, and then the input block gracefully flips over to display your mango logic problem without refreshing or changing pages.
