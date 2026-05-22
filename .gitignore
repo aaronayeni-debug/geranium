@@ -23,5 +23,14 @@ dist-ssr
 *.sln
 *.sw?
 
+# Environments
 venv/
 .venv/
+
+# Documents and spreadsheets
+*.xlsx
+*.pdf
+
+# Unused/temp assets
+1.jpeg
+public/images/geranium service 2s.jpeg
