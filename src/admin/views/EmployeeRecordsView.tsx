@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { UploadCloud, CheckCircle, Database, Trash2, Users, FilePlus } from 'lucide-react';
+import { UploadCloud, CheckCircle, Database, Trash2, Users, FilePlus, FileText, Search, X, Calendar } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { supabase } from '../../lib/supabaseClient';
 import type { EmployeeRecord } from '../types';
@@ -17,6 +17,10 @@ export default function EmployeeRecordsView({ initialFile, onClearInitialFile }:
   const [existingRecords, setExistingRecords] = useState<EmployeeRecord[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Unified Search and Filter States
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedDate, setSelectedDate] = useState('');
 
   const fetchRecords = async (showLoading = true) => {
     if (showLoading) {
@@ -36,6 +40,66 @@ export default function EmployeeRecordsView({ initialFile, onClearInitialFile }:
       setIsLoading(false);
     }
   };
+
+  const handleClearFilters = () => {
+    setSearchQuery('');
+    setSelectedDate('');
+  };
+
+  // Fuzzy match helper function (subsequence match)
+  const fuzzyMatch = (query: string, target: string): boolean => {
+    const q = query.toLowerCase().trim();
+    const t = target.toLowerCase().trim();
+    if (!q) return true;
+    if (!t) return false;
+    
+    // Try exact substring match first
+    if (t.includes(q)) return true;
+    
+    // Subsequence match (e.g. "oyeola" matches "oyekola")
+    let qIdx = 0;
+    let tIdx = 0;
+    while (qIdx < q.length && tIdx < t.length) {
+      if (q[qIdx] === t[tIdx]) {
+        qIdx++;
+      }
+      tIdx++;
+    }
+    return qIdx === q.length;
+  };
+
+  // Filter employee records client-side (real-time while typing)
+  const filteredRecords = existingRecords.filter((record) => {
+    // 1. Unified Search matching Name, ID (Staff ID), RSA PIN, or Employer/Employee Code using fuzzy search
+    // Require a minimum of 3 characters before filtering for safety and performance
+    if (searchQuery.trim().length >= 3) {
+      const name = record.name_of_employee || '';
+      const staffId = record.staff_id || '';
+      const rsaPin = record.rsa_pin || '';
+      const employerCode = record.employer_code || '';
+      
+      const matchesName = fuzzyMatch(searchQuery, name);
+      const matchesStaffId = fuzzyMatch(searchQuery, staffId);
+      const matchesRsaPin = fuzzyMatch(searchQuery, rsaPin);
+      const matchesEmployerCode = fuzzyMatch(searchQuery, employerCode);
+      
+      if (!matchesName && !matchesStaffId && !matchesRsaPin && !matchesEmployerCode) {
+        return false;
+      }
+    }
+    
+    // 2. Date Upload Filter (real-time)
+    if (selectedDate) {
+      if (!record.created_at) return false;
+      const recordDate = new Date(record.created_at);
+      const formattedRecordDate = `${recordDate.getFullYear()}-${String(recordDate.getMonth() + 1).padStart(2, '0')}-${String(recordDate.getDate()).padStart(2, '0')}`;
+      if (formattedRecordDate !== selectedDate) {
+        return false;
+      }
+    }
+    
+    return true;
+  });
 
   async function parseExcelFile(uploadedFile: File) {
     try {
@@ -220,7 +284,7 @@ export default function EmployeeRecordsView({ initialFile, onClearInitialFile }:
         <div className="bg-white rounded-2xl p-6 md:p-8 border border-slate-200/60 shadow-[0_8px_30px_rgba(150,155,170,0.08)]">
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-lg font-bold text-slate-800 flex items-center">
-              <Database className="w-5 h-5 mr-2 text-[#D4900A]" /> Saved Remittance Records
+              <FileText className="w-5 h-5 mr-2 text-[#D4900A]" />  Remittance Records
             </h3>
             <button 
               onClick={() => setActiveTab('upload')}
@@ -245,58 +309,118 @@ export default function EmployeeRecordsView({ initialFile, onClearInitialFile }:
               </button>
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-xl border border-slate-200/80 shadow-sm max-h-[600px] overflow-y-auto">
-              <table className="w-full text-sm text-left whitespace-nowrap">
-                <thead className="bg-slate-50 text-slate-600 font-semibold text-xs uppercase tracking-wider sticky top-0 z-10 shadow-sm">
-                  <tr>
-                    <th className="px-4 py-3">Employee Name</th>
-                    <th className="px-4 py-3">Staff ID</th>
-                    <th className="px-4 py-3">RSA PIN</th>
-                    <th className="px-4 py-3">Period</th>
-                    <th className="px-4 py-3 text-center">Normal Contribution (Employee)</th>
-                    <th className="px-4 py-3 text-center">Normal Contribution (Employer)</th>
-                    <th className="px-4 py-3 text-center">Voluntary Contribution (Employee)</th>
-                    <th className="px-4 py-3 text-center">Voluntary Contribution (Employer)</th>
-                    <th className="px-4 py-3 text-center">Total Amount</th>
-                    <th className="px-4 py-3">PFA Code</th>
-                    <th className="px-4 py-3">Employer Code</th>
-                    <th className="px-4 py-3">Uploaded On</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {existingRecords.map((record) => (
-                    <tr key={record.id} className="bg-white hover:bg-slate-50/50 transition-colors">
-                      <td className="px-4 py-3 font-semibold text-slate-800">{record.name_of_employee}</td>
-                      <td className="px-4 py-3 text-slate-600">{record.staff_id || '-'}</td>
-                      <td className="px-4 py-3 font-mono text-slate-600 text-xs">{record.rsa_pin}</td>
-                      <td className="px-4 py-3 text-slate-600 text-xs">
-                        {record.for_the_month_of} {record.year_of_contribution}
-                      </td>
-                      <td className="px-4 py-3 text-center text-slate-600 font-mono">
-                        {formatCurrency(record.normal_contribution_for_employee)}
-                      </td>
-                      <td className="px-4 py-3 text-center text-slate-600 font-mono">
-                        {formatCurrency(record.normal_contribution_for_employer)}
-                      </td>
-                      <td className="px-4 py-3 text-center text-slate-600 font-mono">
-                        {formatCurrency(record.voluntary_contribution_by_employee)}
-                      </td>
-                      <td className="px-4 py-3 text-center text-slate-600 font-mono">
-                        {formatCurrency(record.voluntary_contribution_by_employer)}
-                      </td>
-                      <td className="px-4 py-3 text-center font-bold text-slate-800 font-mono">
-                        {formatCurrency(record.total_amount)}
-                      </td>
-                      <td className="px-4 py-3 text-slate-600 font-semibold">{record.pfa_code}</td>
-                      <td className="px-4 py-3 text-slate-500 text-xs">{record.employer_code || '-'}</td>
-                      <td className="px-4 py-3 text-slate-400 text-xs">
-                        {new Date(record.created_at || '').toLocaleDateString()}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <>
+              {/* Unified Search & Upload Date Filter Panel (Instant Live Filtering) */}
+              <div className="bg-slate-50/70 border border-slate-200/60 rounded-2xl p-4 mb-6 flex flex-col md:flex-row items-stretch md:items-end gap-4 animate-fade-in">
+                <div className="flex-grow min-w-[260px] flex flex-col">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center">
+                    <Search size={12} className="mr-1 text-[#D4900A]" /> Unified Search
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Type to search by Employee name, ID, RSA pin, or employer code..."
+                      className="w-full pl-10 pr-4 py-2.5 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#D4900A]/20 focus:border-[#D4900A] transition-all shadow-sm"
+                    />
+                    <Search size={18} className="absolute left-3.5 top-3 text-slate-400" />
+                  </div>
+                </div>
+
+                <div className="min-w-[200px] flex flex-col">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center">
+                    <Calendar size={12} className="mr-1 text-[#D4900A]" /> Filter by Upload Date
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="date"
+                      value={selectedDate}
+                      onChange={(e) => setSelectedDate(e.target.value)}
+                      className="w-full px-4 py-2.5 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#D4900A]/20 focus:border-[#D4900A] transition-all shadow-sm text-slate-600"
+                    />
+                  </div>
+                </div>
+
+                {(searchQuery || selectedDate) && (
+                  <div className="flex items-center gap-2.5 mt-2 md:mt-0">
+                    <button
+                      onClick={handleClearFilters}
+                      className="w-full md:w-auto px-5 py-2.5 bg-slate-100 hover:bg-slate-200 active:scale-[0.98] text-slate-600 hover:text-slate-800 text-sm font-semibold rounded-xl transition-all flex items-center justify-center cursor-pointer h-[42px]"
+                      title="Clear filters"
+                    >
+                      <X size={16} className="mr-1" /> Reset
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {filteredRecords.length === 0 ? (
+                <div className="text-center py-12 bg-slate-50 rounded-xl border border-slate-200/60 border-dashed flex flex-col items-center justify-center">
+                  <p className="text-slate-600 font-medium">No records found matching your search criteria.</p>
+                  <p className="text-xs text-slate-400 mt-1">Try resetting the filters or modifying your query.</p>
+                  <button 
+                    onClick={handleClearFilters}
+                    className="mt-4 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-xl transition-all cursor-pointer"
+                  >
+                    Clear Search & Filters
+                  </button>
+                </div>
+              ) : (
+                <div className="overflow-x-auto rounded-xl border border-slate-200/80 shadow-sm max-h-[600px] overflow-y-auto">
+                  <table className="w-full text-sm text-left whitespace-nowrap">
+                    <thead className="bg-slate-50 text-slate-600 font-semibold text-xs uppercase tracking-wider sticky top-0 z-10 shadow-sm">
+                      <tr>
+                        <th className="px-4 py-3">Employee Name</th>
+                        <th className="px-4 py-3">Staff ID</th>
+                        <th className="px-4 py-3">RSA PIN</th>
+                        <th className="px-4 py-3">Period</th>
+                        <th className="px-4 py-3 text-center">Normal Contribution (Employee)</th>
+                        <th className="px-4 py-3 text-center">Normal Contribution (Employer)</th>
+                        <th className="px-4 py-3 text-center">Voluntary Contribution (Employee)</th>
+                        <th className="px-4 py-3 text-center">Voluntary Contribution (Employer)</th>
+                        <th className="px-4 py-3 text-center">Total Amount</th>
+                        <th className="px-4 py-3">PFA Code</th>
+                        <th className="px-4 py-3">Employer Code</th>
+                        <th className="px-4 py-3">Uploaded On</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredRecords.map((record) => (
+                        <tr key={record.id} className="bg-white hover:bg-slate-50/50 transition-colors">
+                          <td className="px-4 py-3 font-semibold text-slate-800">{record.name_of_employee}</td>
+                          <td className="px-4 py-3 text-slate-600">{record.staff_id || '-'}</td>
+                          <td className="px-4 py-3 font-mono text-slate-600 text-xs">{record.rsa_pin}</td>
+                          <td className="px-4 py-3 text-slate-600 text-xs">
+                            {record.for_the_month_of} {record.year_of_contribution}
+                          </td>
+                          <td className="px-4 py-3 text-center text-slate-600 font-mono">
+                            {formatCurrency(record.normal_contribution_for_employee)}
+                          </td>
+                          <td className="px-4 py-3 text-center text-slate-600 font-mono">
+                            {formatCurrency(record.normal_contribution_for_employer)}
+                          </td>
+                          <td className="px-4 py-3 text-center text-slate-600 font-mono">
+                            {formatCurrency(record.voluntary_contribution_by_employee)}
+                          </td>
+                          <td className="px-4 py-3 text-center text-slate-600 font-mono">
+                            {formatCurrency(record.voluntary_contribution_by_employer)}
+                          </td>
+                          <td className="px-4 py-3 text-center font-bold text-slate-800 font-mono">
+                            {formatCurrency(record.total_amount)}
+                          </td>
+                          <td className="px-4 py-3 text-slate-600 font-semibold">{record.pfa_code}</td>
+                          <td className="px-4 py-3 text-slate-500 text-xs">{record.employer_code || '-'}</td>
+                          <td className="px-4 py-3 text-slate-400 text-xs">
+                            {new Date(record.created_at || '').toLocaleDateString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
           )}
         </div>
       )}
